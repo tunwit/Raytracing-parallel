@@ -13,10 +13,9 @@ class Integrator():
         pass
 
     def compute_scattering(self, rGen_ray, scene, maxDepth):
-
         if maxDepth <= 0:
             return rtu.Color()
-
+    
         # if the generated ray hits an object
         found_hit = scene.find_intersection(rGen_ray, rtu.Interval(0.000001, rtu.infinity_number))
         if found_hit == True:

@@ -11,7 +11,7 @@ import RT_texture as rtt
 def renderDoF():
     main_camera = rtc.Camera()
     main_camera.aspect_ratio = 16.0/9.0
-    main_camera.img_width = 320
+    main_camera.img_width = 480
     main_camera.center = rtu.Vec3(0,0,0)
     main_camera.samples_per_pixel = 100
     main_camera.max_depth = 5
@@ -20,9 +20,10 @@ def renderDoF():
     main_camera.look_at = rtu.Vec3(0, 0, -1)
     main_camera.vec_up = rtu.Vec3(0, 1, 0)
 
+    aperture = 1.0
     defocus_angle = 2.0
     focus_distance = 5.0
-    main_camera.init_camera(defocus_angle, focus_distance)
+    main_camera.init_camera(defocus_angle, focus_distance,aperture)
     # add objects to the scene
 
     tex_checker_bw = rtt.CheckerTexture(0.32, rtu.Color(.2, .2, .2), rtu.Color(.9, .9, .9))
@@ -44,14 +45,14 @@ def renderDoF():
 
     renderer = rtren.Renderer(main_camera, intg, world)
     renderer.render_jittered()
-    renderer.write_img2png('week10_jitter_DoF.png')    
+    renderer.write_img2png('week10_aperture_jittered_DoF.png')    
 
 def renderMoving():
     main_camera = rtc.Camera()
     main_camera.aspect_ratio = 16.0/9.0
-    main_camera.img_width = 320
+    main_camera.img_width = 480
     main_camera.center = rtu.Vec3(0,0,0)
-    main_camera.samples_per_pixel = 200
+    main_camera.samples_per_pixel = 10
     main_camera.max_depth = 5
     main_camera.vertical_fov = 60
     main_camera.look_from = rtu.Vec3(-2, 2, 1)
@@ -84,8 +85,8 @@ def renderMoving():
     intg = rti.Integrator(bSkyBG=True)
 
     renderer = rtren.Renderer(main_camera, intg, world)
-    renderer.render_jittered()
-    renderer.write_img2png('week10_moving_nojitter.png')    
+    renderer.render()
+    renderer.write_img2png('week10_moving_jitter.png')    
 
 if __name__ == "__main__":
     # renderDoF()
