@@ -54,12 +54,8 @@ class Integrator():
 
             # return the color
             # Le*attennuation_color upto the point before reflection models otherwise it is not correct.
-            NdotL = rtu.Vec3.dot_product(hinfo.getNormal(), sinfo.scattered_ray.getDirection())
-            if NdotL < 1e-06:
-                NdotL = 0.0
             L_i = self.compute_scattering(sinfo.scattered_ray, scene, maxDepth-1)
-            Fr =  hmat.BRDF(rGen_ray, sinfo.scattered_ray, hinfo)
-            return Le + ( Fr * L_i * NdotL )
+            return Le + (sinfo.attenuation_color * L_i)
 
         if self.bool_sky_background:
             return scene.get_sky_background_color(rGen_ray)

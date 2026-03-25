@@ -4,6 +4,12 @@ import numpy as np
 from PIL import Image as im
 import sys
 from enum import Enum
+from stl import mesh as stlmesh
+import RT_object as rto
+import RT_utility as rtu
+import RT_BVH as rtb
+import multiprocessing as mp
+
 
 global infinity_number
 global pi 
@@ -16,6 +22,21 @@ def random_double(min=0.0, max=1.0):
 
 def linear_to_gamma(val, gammaVal):
     return math.pow(val, 1.0/gammaVal)
+
+def surrounding_box(box0, box1):
+    small = rtu.Vec3(
+        min(box0.min.x(), box1.min.x()),
+        min(box0.min.y(), box1.min.y()),
+        min(box0.min.z(), box1.min.z())
+    )
+
+    big = rtu.Vec3(
+        max(box0.max.x(), box1.max.x()),
+        max(box0.max.y(), box1.max.y()),
+        max(box0.max.z(), box1.max.z())
+    )
+
+    return rtb.AABB(small, big)
 
 class RenderType(Enum):
     NORMAL = "normal"
@@ -54,6 +75,15 @@ class Vec3:
     
     def __neg__(self):
         return Vec3(-self.e[0], -self.e[1], -self.e[2])
+
+    def __getitem__(self, i):
+        if i == 0: return self.x()
+        elif i == 1: return self.y()
+        elif i == 2: return self.z()
+        else:
+            raise IndexError("Vec3 index out of range")
+    def __str__(self):
+        return f"({self.e[0]}, {self.e[1]}, {self.e[2]})"
 
     def printout(self):
         print('{},{},{}'.format(self.e[0], self.e[1], self.e[2]))
@@ -230,18 +260,20 @@ class Hitinfo:
         return (self.u, self.v)
     
 class Interval:
-    def __init__(self, minval, maxval) -> None:
-        self.min_val = minval
-        self.max_val = maxval 
-        pass
+    def __init__(self, minval=0.0, maxval=float('inf')) -> None:
+        self.min_val = float(minval)
+        self.max_val = float(maxval)
 
     def contains(self, x):
+        x = float(x)
         return self.min_val <= x and x <= self.max_val
     
     def surrounds(self, x):
+        x = float(x)
         return self.min_val < x and x < self.max_val
     
     def clamp(self, x):
+        x = float(x)
         if x < self.min_val:
             return self.min_val
         if x > self.max_val:
@@ -250,6 +282,7 @@ class Interval:
     
     @staticmethod
     def near_zero(x, fTol=1e-8):
+        x = float(x)
         tol = fTol
         return math.fabs(x) < tol
 
@@ -266,3 +299,49 @@ class Scatterinfo:
         self.scattered_ray = vRay
         self.attenuation_color = fAttenuation
 
+class MeshTranformer():
+    @staticmethod
+    def stl_to_mesh(filepath, material,pos):
+        stl_data = stlmesh.Mesh.from_file(filepath)
+
+        min_v = rtu.Vec3(float('inf'), float('inf'), float('inf'))
+        max_v = rtu.Vec3(float('-inf'), float('-inf'), float('-inf'))
+        
+        # Compute bounds
+        for tri in stl_data.vectors:
+            for v in tri:
+                vec = rtu.Vec3(*v)
+                min_v = rtu.Vec3(
+                    min(min_v.x(), vec.x()),
+                    min(min_v.y(), vec.y()),
+                    min(min_v.z(), vec.z())
+                )
+                max_v = rtu.Vec3(
+                    max(max_v.x(), vec.x()),
+                    max(max_v.y(), vec.y()),
+                    max(max_v.z(), vec.z())
+                )
+
+        extent = max_v - min_v
+        max_dim = max(extent.x(), extent.y(), extent.z())
+        scale = 2.0 / max_dim
+        center = (min_v + max_v) * 0.5 
+
+        # Include pos in args
+        args_list = [(tri, center, scale, material, pos) for tri in stl_data.vectors]
+
+        with mp.Pool(processes=mp.cpu_count()) as pool:
+            triangles = pool.map(MeshTranformer._transform_triangle, args_list)
+
+        print(f"Finish Transform {filepath} to mesh with {len(triangles)} triangle(s)")
+        return rto.Mesh(triangles)
+    
+    @staticmethod
+    def _transform_triangle(args):
+        tri, center, scale, material, pos = args
+
+        v0 = (rtu.Vec3(*tri[0]) - center) * scale + pos
+        v1 = (rtu.Vec3(*tri[1]) - center) * scale + pos
+        v2 = (rtu.Vec3(*tri[2]) - center) * scale + pos
+
+        return rto.Triangle(v0, v1, v2, material)

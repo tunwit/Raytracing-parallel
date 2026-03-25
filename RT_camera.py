@@ -34,8 +34,8 @@ class Camera:
         h = int(self.img_width / self.aspect_ratio)
         return  h if h > 1 else 1
     
-    def init_camera(self,fDefocusAngle=0.0, fFocusDist=10.0,fAperture=1.0):
-        self.set_Lens(fDefocusAngle, fFocusDist,fAperture)
+    def init_camera(self,fDefocusAngle=0.0, fFocusDist=10.0):
+        self.set_Lens(fDefocusAngle, fFocusDist)
 
         self.img_height = self.compute_img_height()
         self.center = self.look_from
@@ -58,13 +58,14 @@ class Camera:
         self.film = np.zeros((self.img_height, self.img_width, self.img_spectrum))
 
         # compute defocus parameters.
-        defocus_radius = self.Lens.get_aperture() * 0.5
+        theta = math.radians(self.Lens.get_defocus_angle())
+        defocus_radius = self.Lens.get_focus_dist() * math.tan(theta / 2)
         self.defocus_disk_u = self.camera_frame_u * defocus_radius
         self.defocus_disk_v = self.camera_frame_v * defocus_radius
 
     # call right before init_camera()
-    def set_Lens(self, fDefocusAngle, fFocusDist,fAperture):
-        self.Lens = Thinlens(fDefocusAngle, fFocusDist,fAperture)
+    def set_Lens(self, fDefocusAngle, fFocusDist):
+        self.Lens = Thinlens(fDefocusAngle, fFocusDist)
 
     def write_to_film(self, widthId, heightId, cPixelColor):
         # scaling with samples_per_pixel
@@ -104,7 +105,7 @@ class Camera:
         pixel_sample = pixel_center + self.random_pixel_in_square(self.pixel_du, self.pixel_dv)
 
         ray_origin = self.center
-        if self.Lens.get_aperture() > 1e-06:
+        if self.Lens.get_defocus_angle() > 1e-06:
             ray_origin = self.defocus_disk_sample()
         ray_direction = pixel_sample - ray_origin
         ray_time = rtu.random_double()              # an additional parameter for motion blur
@@ -117,7 +118,7 @@ class Camera:
         pixel_sample = pixel_center + self.pixel_sample_square(self.pixel_du, self.pixel_dv, s_i, s_j) * 0.5
 
         ray_origin = self.center
-        if self.Lens.get_aperture() > 1e-06:
+        if self.Lens.get_defocus_angle() > 1e-06:
             ray_origin = self.defocus_disk_sample()
         ray_direction = pixel_sample - ray_origin
         ray_time = rtu.random_double()              # an additional parameter for motion blur
@@ -147,18 +148,16 @@ class Lens():
         pass
 
 class Thinlens(Lens):
-    def __init__(self, fDefocusAngle=0.0, fFocusDist=10.0,fAperture=1.0) -> None:
+    def __init__(self, fDefocusAngle=0.0, fFocusDist=10.0) -> None:
         super().__init__()
 
         self.defocus_angle = fDefocusAngle
         self.focus_distance = fFocusDist
-        self.aperture = fAperture
+
 
     def get_focus_dist(self):
         return self.focus_distance
     def get_defocus_angle(self):
         return self.defocus_angle
-    def get_aperture(self):
-        return self.aperture
 
     

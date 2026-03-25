@@ -71,8 +71,13 @@ class Scene:
     def find_lights(self):
         np_obj_list = np.array(self.obj_list)
         for obj in np_obj_list:
-            if obj.material.is_light():
-                self.light_list.append(obj)
+            if isinstance(obj, rto.Mesh):
+                for tri in obj.triangles:
+                    if tri.material and tri.material.is_light():
+                        self.light_list.append(tri)
+            else:
+                if obj.material and obj.material.is_light():
+                    self.light_list.append(obj)
 
         self.find_point_lights()
 
@@ -80,4 +85,4 @@ class Scene:
         for light in self.light_list:
             if isinstance(light, rto.Sphere):
                 self.point_light_list.append(light)
-
+    
