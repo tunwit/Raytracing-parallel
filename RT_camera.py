@@ -84,10 +84,6 @@ class Camera:
         self.film[heightId,widthId,2] = self.intensity.clamp(b)
 
     def write_tile_to_film(self, x0, y0, tile_data):
-        # Scale by samples per pixel
-        scale = 1.0 / self.samples_per_pixel
-        tile_data *= scale
-
         tile_data = np.sqrt(tile_data)
 
         tile_data = np.clip(tile_data, 0.0, 1.0)
@@ -124,6 +120,52 @@ class Camera:
         ray_time = rtu.random_double()              # an additional parameter for motion blur
 
         return rtr.Ray(ray_origin, ray_direction,ray_time)
+
+    def get_random_jittered_ray(self, i, j):
+
+        pixel_center = self.pixel00_location + (self.pixel_du*i) + (self.pixel_dv*j)
+        rd_x = rtu.random_double() - 0.5
+        rd_y = rtu.random_double() - 0.5
+
+        pixel_sample = pixel_center + (self.pixel_du * rd_x) + (self.pixel_dv * rd_y)
+
+        ray_origin = self.center
+        if self.Lens.get_defocus_angle() > 1e-06:
+            ray_origin = self.defocus_disk_sample()
+        ray_direction = pixel_sample - ray_origin
+        ray_time = rtu.random_double()            
+
+        return rtr.Ray(ray_origin, ray_direction,ray_time)
+    
+    def get_jittered_stratified_ray(self, i, j, sample_index):
+        # Let's assume a 4x4 stratification grid (16 cells total)
+        grid_size = 4 
+        num_cells = grid_size * grid_size
+        
+        # Determine which cell this specific sample belongs to
+        cell_idx = sample_index % num_cells
+        cell_x = cell_idx % grid_size
+        cell_y = cell_idx // grid_size
+        
+        # Calculate the boundaries of this specific cell within the pixel
+        # Each cell is 1/grid_size wide/tall
+        cell_width = 1.0 / grid_size
+        
+        # Pick a random spot ONLY within this tiny cell
+        # random_double() returns 0.0 to 1.0
+        stochastic_offset_x = (cell_x + rtu.random_double()) * cell_width - 0.5
+        stochastic_offset_y = (cell_y + rtu.random_double()) * cell_width - 0.5
+        
+        # Standard ray math
+        pixel_center = self.pixel00_location + (self.pixel_du * i) + (self.pixel_dv * j)
+        pixel_sample = pixel_center + (self.pixel_du * stochastic_offset_x) + (self.pixel_dv * stochastic_offset_y)
+
+        ray_origin = self.center
+        if self.Lens.get_defocus_angle() > 1e-06:
+            ray_origin = self.defocus_disk_sample()
+            
+        ray_direction = pixel_sample - ray_origin
+        return rtr.Ray(ray_origin, ray_direction, rtu.random_double())
 
     def random_pixel_in_square(self, vDu, vDv):
         px = -0.5 + rtu.random_double()

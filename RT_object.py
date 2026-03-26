@@ -1,7 +1,7 @@
 # object class
 import RT_utility as rtu
 import RT_BVH as rtb
-import random
+import numpy as np
 import math
 
 class Object:
@@ -200,99 +200,128 @@ class Triangle(Object):
         )
 
         return rtb.AABB(min_v, max_v)
-        
+
 class Mesh(Object):
-    def __init__(self, triangles, scale=1.0, rotation_deg=(0, 0, 0)):
-        transformed_triangles = self._apply_transform(triangles, scale, rotation_deg)
-        self.triangles = transformed_triangles
-        self.bvh = BVHNode(transformed_triangles)
-
-    def setScaleAndRotation(self,scale,rotation_deg):
-        transformed_triangles = self._apply_transform(self.triangles,scale,rotation_deg)
-        self.triangles = transformed_triangles
-        self.bvh = BVHNode(transformed_triangles)
-
-    def _apply_transform(self, triangles, scale, rotation_deg):
-        rad_x = math.radians(rotation_deg[0])
-        rad_y = math.radians(rotation_deg[1])
-        rad_z = math.radians(rotation_deg[2])
-
-        new_triangles = []
-        for tri in triangles:
-            v0_new = self._rotate_and_scale(tri.v0, scale, rad_x, rad_y, rad_z)
-            v1_new = self._rotate_and_scale(tri.v1, scale, rad_x, rad_y, rad_z)
-            v2_new = self._rotate_and_scale(tri.v2, scale, rad_x, rad_y, rad_z)
-            
-            # Create a new triangle with the same material
-            new_tri = Triangle(v0_new, v1_new, v2_new, tri.material)
-            new_triangles.append(new_tri)
+    def __init__(self, triangles, scale=1.0, rotation_deg=(0, 0, 0), pos=(0, 0, 0)):
+        self.base_triangles = triangles 
         
-        return new_triangles
+        self.scale = scale
+        self.rotation_deg = rotation_deg
+        self.pos = rtu.Vec3(*pos) if isinstance(pos, (tuple, list)) else pos
+        
+        self._update_geometry()
 
-    def _rotate_and_scale(self, v, s, rx, ry, rz):
+    def set_transform(self, scale=None, rotation_deg=None, pos=None):
+        if scale is not None: self.scale = scale
+        if rotation_deg is not None: self.rotation_deg = rotation_deg
+        if pos is not None: 
+            self.pos = rtu.Vec3(*pos) if isinstance(pos, (tuple, list)) else pos
+        
+        self._update_geometry()
+
+    def _update_geometry(self):
+        rad_x = math.radians(self.rotation_deg[0])
+        rad_y = math.radians(self.rotation_deg[1])
+        rad_z = math.radians(self.rotation_deg[2])
+
+        new_world_triangles = []
+        
+        for tri in self.base_triangles:
+            v0_local = self._apply_math(tri.v0, self.scale, rad_x, rad_y, rad_z)
+            v1_local = self._apply_math(tri.v1, self.scale, rad_x, rad_y, rad_z)
+            v2_local = self._apply_math(tri.v2, self.scale, rad_x, rad_y, rad_z)
+            
+            v0_world = v0_local + self.pos
+            v1_world = v1_local + self.pos
+            v2_world = v2_local + self.pos
+            
+            new_tri = Triangle(v0_world, v1_world, v2_world, tri.material)
+            new_world_triangles.append(new_tri)
+        
+        self.triangles = new_world_triangles
+
+        self.bvh = BVHNode(self.triangles)
+
+    def _apply_math(self, v, s, rx, ry, rz):
         x, y, z = v.x() * s, v.y() * s, v.z() * s
 
         if rx != 0:
-            new_y = y * math.cos(rx) - z * math.sin(rx)
-            new_z = y * math.sin(rx) + z * math.cos(rx)
-            y, z = new_y, new_z
-
+            c, s_val = math.cos(rx), math.sin(rx)
+            y, z = y * c - z * s_val, y * s_val + z * c
         if ry != 0:
-            new_x = x * math.cos(ry) + z * math.sin(ry)
-            new_z = -x * math.sin(ry) + z * math.cos(ry)
-            x, z = new_x, new_z
-
+            c, s_val = math.cos(ry), math.sin(ry)
+            x, z = x * c + z * s_val, -x * s_val + z * c
         if rz != 0:
-            new_x = x * math.cos(rz) - y * math.sin(rz)
-            new_y = x * math.sin(rz) + y * math.cos(rz)
-            x, y = new_x, new_y
+            c, s_val = math.cos(rz), math.sin(rz)
+            x, y = x * c - y * s_val, x * s_val + y * c
 
         return rtu.Vec3(x, y, z)
 
     def intersect(self, rRay, cInterval):
         return self.bvh.intersect(rRay, cInterval)
-
+    
 class BVHNode(Object):
-    def __init__(self, objects):
+    def __init__(self, objects, max_leaf_size=2):
         super().__init__()
 
-        objects = list(objects) 
-
-        axis = random.randint(0, 2)
-        
-        objects = [(obj, obj.bounding_box()) for obj in objects]
-        objects.sort(key=lambda item: item[1].min[axis])
-        objects = [item[0] for item in objects]
-        
+        objects = list(objects)
         n = len(objects)
 
+        # Base cases
         if n == 1:
             self.left = objects[0]
             self.right = None
-
+            self.box = objects[0].bounding_box()
+            return
         elif n == 2:
             self.left = objects[0]
             self.right = objects[1]
-
-        else:
-            mid = n // 2
-            self.left = BVHNode(objects[:mid])
-            self.right = BVHNode(objects[mid:])
-
-        if self.right is None:
-            self.box = self.left.bounding_box()
-        else:
             box_left = self.left.bounding_box()
             box_right = self.right.bounding_box()
             self.box = rtu.surrounding_box(box_left, box_right)
+            return
+
+        # Compute bounding box of all objects
+        object_boxes = [(obj, obj.bounding_box()) for obj in objects]
+        bbox_min = rtu.Vec3(float('inf'), float('inf'), float('inf'))
+        bbox_max = rtu.Vec3(float('-inf'), float('-inf'), float('-inf'))
+        for obj, box in object_boxes:
+            bbox_min = rtu.Vec3(
+                min(bbox_min.x(), box.min.x()),
+                min(bbox_min.y(), box.min.y()),
+                min(bbox_min.z(), box.min.z())
+            )
+            bbox_max = rtu.Vec3(
+                max(bbox_max.x(), box.max.x()),
+                max(bbox_max.y(), box.max.y()),
+                max(bbox_max.z(), box.max.z())
+            )
+
+        # Split axis = longest axis
+        extent = bbox_max - bbox_min
+        axis = np.argmax([extent.x(), extent.y(), extent.z()])
+
+        # Sort objects along the chosen axis using their bounding box centers
+        object_boxes.sort(key=lambda obj_box: 0.5 * (obj_box[1].min[axis] + obj_box[1].max[axis]))
+        objects = [obj for obj, _ in object_boxes]
+
+        # Split in the middle (median)
+        mid = n // 2
+        left_objects = objects[:mid]
+        right_objects = objects[mid:]
+
+        # Create children recursively
+        self.left = BVHNode(left_objects, max_leaf_size)
+        self.right = BVHNode(right_objects, max_leaf_size)
+
+        # Compute enclosing bounding box
+        self.box = rtu.surrounding_box(self.left.bounding_box(), self.right.bounding_box())
 
     def intersect(self, rRay, cInterval):
-        # IMPORTANT: use copy of interval
         if not self.box.hit(rRay, rtu.Interval(cInterval.min_val, cInterval.max_val)):
             return None
 
         hit_left = self.left.intersect(rRay, cInterval)
-
         if hit_left:
             new_interval = rtu.Interval(cInterval.min_val, hit_left.t)
         else:

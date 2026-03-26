@@ -7,9 +7,10 @@ import RT_material as rtm
 import math
 
 class Integrator():
-    def __init__(self, bDlight=True, bSkyBG=False) -> None:
+    def __init__(self, bDlight=True, bSkyBG=False,roulette=True) -> None:
         self.bool_direct_lighting = bDlight
         self.bool_sky_background = bSkyBG
+        self.roulette = roulette
         pass
 
     def compute_scattering(self, rGen_ray, scene, maxDepth):
@@ -54,8 +55,16 @@ class Integrator():
 
             # return the color
             # Le*attennuation_color upto the point before reflection models otherwise it is not correct.
-            L_i = self.compute_scattering(sinfo.scattered_ray, scene, maxDepth-1)
-            return Le + (sinfo.attenuation_color * L_i)
+            L_i = rtu.Color()
+            throughput = sinfo.attenuation_color
+            if self.roulette and maxDepth <= 7:
+                p = min(0.95, max(throughput.r(), throughput.g(), throughput.b()))
+                if rtu.random_double() > p:
+                    return Le
+                throughput = throughput / p
+
+            L_i = self.compute_scattering(sinfo.scattered_ray, scene, maxDepth - 1)
+            return Le + (throughput * L_i)
 
         if self.bool_sky_background:
             return scene.get_sky_background_color(rGen_ray)

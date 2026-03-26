@@ -14,9 +14,8 @@ _worker_integrator = None
 _worker_scene = None
 _worker_sqrt_spp = None
 
-
 def init_worker(camera, integrator, scene, sqrt_spp=None):
-    global _worker_camera, _worker_integrator, _worker_scene, _worker_sqrt_spp
+    global _worker_camera, _worker_integrator, _worker_scene, _worker_sqrt_spp,_active_worker
     _worker_camera = camera
     _worker_integrator = integrator
     _worker_scene = scene
@@ -62,6 +61,7 @@ def compute_tile_jittered(tile):
     x0, x1, y0, y1 = tile
     width, height = x1 - x0, y1 - y0
     tile_data = np.zeros((height, width, 3), dtype=np.float32)
+    total_samples = _worker_sqrt_spp * _worker_sqrt_spp
 
     for j in range(y0, y1):
         for i in range(x0, x1):
@@ -76,13 +76,74 @@ def compute_tile_jittered(tile):
                     g += sample.g()
                     b += sample.b()
 
-            tile_data[j - y0, i - x0, 0] = r
-            tile_data[j - y0, i - x0, 1] = g
-            tile_data[j - y0, i - x0, 2] = b
+            tile_data[j - y0, i - x0, 0] = r / total_samples
+            tile_data[j - y0, i - x0, 1] = g / total_samples
+            tile_data[j - y0, i - x0, 2] = b / total_samples
 
     return x0, y0, tile_data
 
 
+
+def compute_tile_jittered_adaptive(tile):
+    x0, x1, y0, y1 = tile
+    width, height = x1 - x0, y1 - y0
+    tile_data = np.zeros((height, width, 3), dtype=np.float32)
+
+    # --- PRO SETTINGS ---
+    MIN_SAMPLES = 32      # Need a decent baseline for stats to be accurate
+    MAX_SAMPLES = _worker_sqrt_spp * _worker_sqrt_spp
+    BATCH_SIZE = 32       # Larger batches are more efficient for the CPU
+    MAX_ERROR = 0.02    # 2% relative error allowed (adjust this for quality)
+    
+    for j in range(y0, y1):
+        for i in range(x0, x1):
+            sum_r = sum_g = sum_b = 0.0
+            sum_lum = 0.0
+            sum_lum_sq = 0.0
+            count = 0
+            
+            while count < MAX_SAMPLES:
+                for _ in range(BATCH_SIZE):
+                    if count >= MAX_SAMPLES: break
+
+                    ray = _worker_camera.get_jittered_stratified_ray(i, j,count)
+                    sample = _worker_integrator.compute_scattering(
+                        ray, _worker_scene, _worker_camera.max_depth
+                    )
+                    
+                    s_r, s_g, s_b = sample.r(), sample.g(), sample.b()
+                    sum_r += s_r
+                    sum_g += s_g
+                    sum_b += s_b
+
+                    # Stats based on luminance
+                    lum = 0.2126 * s_r + 0.7152 * s_g + 0.0722 * s_b
+                    sum_lum += lum
+                    sum_lum_sq += lum * lum
+                    count += 1
+                
+                if count >= MIN_SAMPLES:
+                    mean_lum = sum_lum / count
+
+                    # If the pixel is pure black
+                    if mean_lum < 0.0001: 
+                        break
+                    variance = max(0, (sum_lum_sq / count) - (mean_lum ** 2))
+                    stdev = math.sqrt(variance)
+                    
+                    # 1.96 is the Z-score for 95%
+                    interval_width = 1.96 * (stdev / math.sqrt(count))
+
+                    # STOP if the error is small RELATIVE to the brightness
+                    if interval_width < (MAX_ERROR * mean_lum):
+                        break
+            
+            tile_data[j - y0, i - x0, 0] = sum_r / count
+            tile_data[j - y0, i - x0, 1] = sum_g / count
+            tile_data[j - y0, i - x0, 2] = sum_b / count
+
+    return x0, y0, tile_data
+    
 class Renderer:
     def __init__(self, cCamera, iIntegrator, sScene) -> None:
         self.camera = cCamera
@@ -92,7 +153,7 @@ class Renderer:
     def _get_compute_function(self, t: RenderType):
         if t == RenderType.JITTERED:
             sqrt_spp = int(math.sqrt(self.camera.samples_per_pixel))
-            return sqrt_spp, compute_tile_jittered
+            return sqrt_spp, compute_tile_jittered_adaptive
         return None, compute_tile
 
     def render(self, type: RenderType = RenderType.NORMAL):

@@ -16,14 +16,12 @@ class Scene:
         self.obj_list.append(obj)
 
     def find_intersection(self, vRay, cInterval):
-
-        np_obj_list = np.array(self.obj_list)
         found_hit = False
         # initialize the closet maximum of t
         closest_tmax = cInterval.max_val
         hinfo = None
         # for each object in the given scene
-        for obj in np_obj_list:
+        for obj in self.obj_list:
             # get the hit info from the intersection between an object and the given ray.
             hinfo = obj.intersect(vRay, rtu.Interval(cInterval.min_val, closest_tmax))
             # if the object is hit by the given ray.
@@ -39,19 +37,22 @@ class Scene:
     # assume that if there is no occlusion, there is only 1 object is hit in the interval.
     # otherwise there will be an occlusion in the interval.
     def find_occlusion(self, vRay, cInterval):
-        np_obj_list = np.array(self.obj_list)
         closest_tmax = cInterval.max_val
         number_of_hit = 0
-        # for each object
-        for obj in np_obj_list:
+        # for each object\
+        inter = rtu.Interval(cInterval.min_val, closest_tmax)
+        
+        for obj in self.obj_list:
             # find an intersection
-            hinfo = obj.intersect(vRay, rtu.Interval(cInterval.min_val, closest_tmax))
+            if hasattr(obj, 'bvh'):
+                hinfo = obj.bvh.intersect(vRay, inter)
+            else:
+                hinfo = obj.intersect(vRay, inter)
             if hinfo is not None:
-                number_of_hit = number_of_hit + 1 
+                number_of_hit += 1
+                
+            if(number_of_hit > 1) : return True
 
-        # if more than 1 object is hit then there is an occlusion.
-        if number_of_hit > 1:
-            return True
         return False
 
     def getHitNormalAt(self, idx):
@@ -69,8 +70,7 @@ class Scene:
         return rtu.Color(1,1,1)*(1.0-a) + rtu.Color(0.5, 0.7, 1.0)*a
     
     def find_lights(self):
-        np_obj_list = np.array(self.obj_list)
-        for obj in np_obj_list:
+        for obj in self.obj_list:
             if isinstance(obj, rto.Mesh):
                 for tri in obj.triangles:
                     if tri.material and tri.material.is_light():

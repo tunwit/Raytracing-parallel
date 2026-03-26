@@ -5,11 +5,11 @@ from PIL import Image as im
 import sys
 from enum import Enum
 from stl import mesh as stlmesh
+import pywavefront
 import RT_object as rto
 import RT_utility as rtu
 import RT_BVH as rtb
 import multiprocessing as mp
-
 
 global infinity_number
 global pi 
@@ -62,6 +62,8 @@ class Vec3:
         return math.sqrt(self.len_squared())
 
     def __truediv__(self, val):
+        if val == 0:
+            return Vec3(0, 0, 0)
         return Vec3(self.e[0]/val, self.e[1]/val, self.e[2]/val)
     
     def __add__(self, vec):
@@ -299,49 +301,3 @@ class Scatterinfo:
         self.scattered_ray = vRay
         self.attenuation_color = fAttenuation
 
-class MeshTranformer():
-    @staticmethod
-    def stl_to_mesh(filepath, material,pos):
-        stl_data = stlmesh.Mesh.from_file(filepath)
-
-        min_v = rtu.Vec3(float('inf'), float('inf'), float('inf'))
-        max_v = rtu.Vec3(float('-inf'), float('-inf'), float('-inf'))
-        
-        # Compute bounds
-        for tri in stl_data.vectors:
-            for v in tri:
-                vec = rtu.Vec3(*v)
-                min_v = rtu.Vec3(
-                    min(min_v.x(), vec.x()),
-                    min(min_v.y(), vec.y()),
-                    min(min_v.z(), vec.z())
-                )
-                max_v = rtu.Vec3(
-                    max(max_v.x(), vec.x()),
-                    max(max_v.y(), vec.y()),
-                    max(max_v.z(), vec.z())
-                )
-
-        extent = max_v - min_v
-        max_dim = max(extent.x(), extent.y(), extent.z())
-        scale = 2.0 / max_dim
-        center = (min_v + max_v) * 0.5 
-
-        # Include pos in args
-        args_list = [(tri, center, scale, material, pos) for tri in stl_data.vectors]
-
-        with mp.Pool(processes=mp.cpu_count()) as pool:
-            triangles = pool.map(MeshTranformer._transform_triangle, args_list)
-
-        print(f"Finish Transform {filepath} to mesh with {len(triangles)} triangle(s)")
-        return rto.Mesh(triangles)
-    
-    @staticmethod
-    def _transform_triangle(args):
-        tri, center, scale, material, pos = args
-
-        v0 = (rtu.Vec3(*tri[0]) - center) * scale + pos
-        v1 = (rtu.Vec3(*tri[1]) - center) * scale + pos
-        v2 = (rtu.Vec3(*tri[2]) - center) * scale + pos
-
-        return rto.Triangle(v0, v1, v2, material)
