@@ -158,10 +158,6 @@ def renderTriangle():
 
 if __name__ == "__main__":
     # renderDoF()
-<<<<<<< HEAD
     renderTriangle()
-=======
-    render2()
->>>>>>> 7e2a9cdde53f82e0876da19142ecf01686d9c8b1
 
 

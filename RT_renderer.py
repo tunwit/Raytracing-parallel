@@ -189,7 +189,6 @@ class Renderer:
             renderbar.finish()
 
     def _compute_adaptive_tile_size(self, width, height, spp):
-<<<<<<< HEAD
         base_pixel_count = 1024  
         
         workload_factor = math.sqrt(spp)
@@ -206,22 +205,6 @@ class Renderer:
         
         final_tile_size = min(final_tile_size, width, height)
         return int(final_tile_size)
-=======
-        cpu = mp.cpu_count()
-        workload_factor = math.sqrt(spp)
-
-        MIN_TILE_MULTIPLIER = 8
-        target_tiles = int(cpu * 6 / max(1, workload_factor / 5))
-        target_tiles = max(cpu * MIN_TILE_MULTIPLIER, target_tiles) 
-
-        total_pixels = width * height
-        tile_area    = total_pixels / target_tiles
-        tile_size    = int(math.sqrt(tile_area))
-
-        tile_size = max(16, min(128, tile_size))
-
-        return tile_size
->>>>>>> 7e2a9cdde53f82e0876da19142ecf01686d9c8b1
 
     def write_img2png(self, strPng_filename):
         png_film = self.camera.film * 255
