@@ -8,12 +8,11 @@ def reflect(vRay, vNormal):
     # return the perfect reflection direction
     return vRay - vNormal*rtu.Vec3.dot_product(vRay, vNormal)*2.0
 
-def refract(vRay, vNormal, fRefractRatio,ior):
+def refract(vRay, vNormal, fRefractRatio):
     cos_theta = min(rtu.Vec3.dot_product(-vRay, vNormal), 1.0)
     sin_theta = math.sqrt(1.0 - cos_theta*cos_theta)
     cannot_refract = fRefractRatio*sin_theta > 1.0
-
-    if cannot_refract or schlick(cos_theta, ior) > rtu.random_double():
+    if cannot_refract or schlick(cos_theta, fRefractRatio) > rtu.random_double():
         return reflect(vRay, vNormal)
     else:
         perpendiular_dir = (vRay + vNormal*cos_theta)*fRefractRatio
@@ -93,7 +92,7 @@ class Dielectric(Material):
 
         # generate a refracted ray
         uv = rtu.Vec3.unit_vector(rRayIn.getDirection())
-        refracted_dir = refract(uv, hHinfo.getNormal(), refract_ratio,self.IOR)
+        refracted_dir = refract(uv, hHinfo.getNormal(), refract_ratio)
         scattered_ray = rtr.Ray(hHinfo.getP(), refracted_dir, rRayIn.getTime())
 
         attenuation_color = self.BRDF(rRayIn, scattered_ray, hHinfo)

@@ -208,7 +208,9 @@ class Mesh(Object):
         self.scale = scale
         self.rotation_deg = rotation_deg
         self.pos = rtu.Vec3(*pos) if isinstance(pos, (tuple, list)) else pos
-        
+        self.center = self._compute_center()
+        self.half_height = self._compute_half_height()
+
         self._update_geometry()
 
     def set_transform(self, scale=None, rotation_deg=None, pos=None):
@@ -225,22 +227,58 @@ class Mesh(Object):
         rad_z = math.radians(self.rotation_deg[2])
 
         new_world_triangles = []
-        
-        for tri in self.base_triangles:
-            v0_local = self._apply_math(tri.v0, self.scale, rad_x, rad_y, rad_z)
-            v1_local = self._apply_math(tri.v1, self.scale, rad_x, rad_y, rad_z)
-            v2_local = self._apply_math(tri.v2, self.scale, rad_x, rad_y, rad_z)
-            
-            v0_world = v0_local + self.pos
-            v1_world = v1_local + self.pos
-            v2_world = v2_local + self.pos
-            
-            new_tri = Triangle(v0_world, v1_world, v2_world, tri.material)
-            new_world_triangles.append(new_tri)
-        
-        self.triangles = new_world_triangles
 
+        lift = rtu.Vec3(0, self.half_height * self.scale, 0)
+
+        for tri in self.base_triangles:
+            v0 = tri.v0 - self.center
+            v1 = tri.v1 - self.center
+            v2 = tri.v2 - self.center
+
+            # apply transform
+            v0 = self._apply_math(v0, self.scale, rad_x, rad_y, rad_z)
+            v1 = self._apply_math(v1, self.scale, rad_x, rad_y, rad_z)
+            v2 = self._apply_math(v2, self.scale, rad_x, rad_y, rad_z)
+
+            # move back + apply lift
+            v0 = v0 + self.center + lift
+            v1 = v1 + self.center + lift
+            v2 = v2 + self.center + lift
+
+            new_world_triangles.append(Triangle(v0, v1, v2, tri.material))
+
+        self.triangles = new_world_triangles
         self.bvh = BVHNode(self.triangles)
+
+    def _compute_center(self):
+        min_v = rtu.Vec3(float('inf'), float('inf'), float('inf'))
+        max_v = rtu.Vec3(float('-inf'), float('-inf'), float('-inf'))
+
+        for tri in self.base_triangles:
+            for v in (tri.v0, tri.v1, tri.v2):
+                min_v = rtu.Vec3(
+                    min(min_v.x(), v.x()),
+                    min(min_v.y(), v.y()),
+                    min(min_v.z(), v.z())
+                )
+                max_v = rtu.Vec3(
+                    max(max_v.x(), v.x()),
+                    max(max_v.y(), v.y()),
+                    max(max_v.z(), v.z())
+                )
+
+        return (min_v + max_v) * 0.5
+
+    def _compute_half_height(self):
+        min_y = float('inf')
+        max_y = float('-inf')
+
+        for tri in self.base_triangles:
+            for v in (tri.v0, tri.v1, tri.v2):
+                min_y = min(min_y, v.y())
+                max_y = max(max_y, v.y())
+
+        return (max_y - min_y) / 2
 
     def _apply_math(self, v, s, rx, ry, rz):
         x, y, z = v.x() * s, v.y() * s, v.z() * s

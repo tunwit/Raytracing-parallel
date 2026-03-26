@@ -161,12 +161,13 @@ class Renderer:
         tile_size = self._compute_adaptive_tile_size(
             self.camera.img_width, self.camera.img_height, self.camera.samples_per_pixel
         )
+        tile_size= 8
         
         tiles = generate_tiles(self.camera.img_width, self.camera.img_height, tile_size)
         avg_pixel_work = self.camera.samples_per_pixel
         base_chunksize = max(1, len(tiles) // (2 * MAX_CPU))
         chunksize = max(1, int(base_chunksize / math.sqrt(avg_pixel_work)))
-
+        chunksize = 1
         sqrt, func = self._get_compute_function(type)
 
         print(f"Initializing Multi-core Render...")
@@ -188,23 +189,18 @@ class Renderer:
                 renderbar.update(idx,recent=datetime.now().strftime("%H:%M %S"))
             renderbar.finish()
 
-    def _compute_adaptive_tile_size(self, width, height, spp):
+    def _compute_adaptive_tile_size(self, width, height, spp, adaptive=False):
+        if adaptive:
+            return 8  # 🔥 sweet spot (try 8–32 depending on scene)
+
         base_pixel_count = 1024  
-        
         workload_factor = math.sqrt(spp)
         target_tile_area = max(256, base_pixel_count / workload_factor)
-        
+
         side = math.sqrt(target_tile_area)
-        
         tile_size = 2**int(math.log2(side) + 0.5)
-        
-        min_tile = 8
-        max_tile = 256
-        
-        final_tile_size = max(min_tile, min(tile_size, max_tile))
-        
-        final_tile_size = min(final_tile_size, width, height)
-        return int(final_tile_size)
+
+        return int(max(8, min(tile_size, 256)))
 
     def write_img2png(self, strPng_filename):
         png_film = self.camera.film * 255

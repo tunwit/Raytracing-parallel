@@ -76,10 +76,14 @@ class ImageTexture(Texture):
         i = int(u*self.img.width)
         j = int(v*self.img.height)
         pixel = self.img.getpixel((i,j))
-
-        # return the pixel color of the texture
-        # remember to scale the value to (0,1)
         scale = 1.0/255
-        return rtu.Color(pixel[0]*scale, pixel[1]*scale, pixel[2]*scale)
+        if isinstance(pixel, int):  # grayscale
+            r = g = b = pixel * scale
+        else:
+            r = pixel[0] * scale
+            g = pixel[1] * scale
+            b = pixel[2] * scale
+        
+        return rtu.Color(r, g, b)
     
 

@@ -4,7 +4,7 @@ import RT_object as rto
 import RT_utility as rtu
 import multiprocessing as mp
 import RT_material as rtm
-
+import copy
 
 class MeshTranformer():
     @staticmethod
@@ -96,12 +96,14 @@ class MeshTranformer():
 
         for tri, material in all_triangles:
             color = material.diffuse[:3] if material.diffuse else (0, 0, 0)
-            mat = rtm.Lambertian(rtu.Color(color[0], color[1], color[2]))
             try:
-                mat(cAlbedo=rtu.Color(color[0], color[1], color[2]))
-            except:
-                pass
-            args_list.append((tri, center, scale, mat, pos, half_height))
+                cp_mat = copy.deepcopy(mat)
+                cp_mat.color_albedo = rtu.Color(color[0], color[1], color[2])
+            except Exception as e:
+                print(e)
+                cp_mat = rtm.Lambertian(rtu.Color(color[0], color[1], color[2]))
+                
+            args_list.append((tri, center, scale, cp_mat, pos, half_height))
 
         with mp.Pool(processes=mp.cpu_count()) as pool:
             triangles = pool.map(MeshTranformer._transform_triangle, args_list)
@@ -118,15 +120,11 @@ class MeshTranformer():
         v2 = (rtu.Vec3(*tri[2]) - center) * scale
 
         def rotate_x(v):
-            y = v.y() * 0 + v.z() * 1
-            z = v.y() * 1 + v.z() * 0
-            return rtu.Vec3(v.x(), y, z)
+            return rtu.Vec3(v.x(), v.z(), v.y())
 
-        # Lift model so its base at y = 0
-        lift = rtu.Vec3(0, half_height, 0)
-        v0 = rotate_x(v0) + lift + pos
-        v1 = rotate_x(v1) + lift + pos
-        v2 = rotate_x(v2) + lift + pos
+        v0 = rotate_x(v0) + pos
+        v1 = rotate_x(v1) + pos
+        v2 = rotate_x(v2) + pos
 
         return rto.Triangle(v0, v1, v2, material)
     
