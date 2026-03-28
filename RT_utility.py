@@ -4,8 +4,14 @@ import numpy as np
 from PIL import Image as im
 import sys
 from enum import Enum
-from stl import mesh as stlmesh
-import pywavefront
+try:
+    from stl import mesh as stlmesh
+except ModuleNotFoundError:
+    stlmesh = None
+try:
+    import pywavefront
+except ModuleNotFoundError:
+    pywavefront = None
 import RT_object as rto
 import RT_utility as rtu
 import RT_BVH as rtb

@@ -35,22 +35,44 @@ class Integrator():
             Le = rtu.Color()
             # if direct lighting is enabled
             if self.bool_direct_lighting:
+                eps = 1e-5
+
                 # for each point light
                 for light in scene.point_light_list:
-                    # check if there is an occlusion between a point light and a surface point.
-                    tolight_dir = light.center - hinfo.getP()
-                    tolight_ray = rtr.Ray(hinfo.getP(), tolight_dir)
-                    max_distance = tolight_dir.len()
-                    occlusion_hit = scene.find_occlusion(tolight_ray, rtu.Interval(0.000001, max_distance))
-                    # if not occluded.
+                    surface_point = hinfo.getP()
+                    surface_normal = hinfo.getNormal()
+
+                    tolight_vec = light.center - surface_point
+                    light_distance = tolight_vec.len()
+                    if light_distance <= eps:
+                        continue
+
+                    light_dir = rtu.Vec3.unit_vector(tolight_vec)
+
+                    NdotLe = rtu.Vec3.dot_product(surface_normal, light_dir)
+                    if NdotLe <= eps:
+                        continue
+
+                    # ยิง shadow ray จากผิวออกไปนิด เพื่อกัน self-intersection
+                    light_radius = getattr(light, 'radius', 0.0)
+                    shadow_max = light_distance - light_radius - eps
+                    if shadow_max <= eps:
+                        shadow_max = light_distance - eps
+                    if shadow_max <= eps:
+                        continue
+
+                    tolight_ray = rtr.Ray(surface_point + surface_normal * eps, light_dir, rGen_ray.getTime())
+                    occlusion_hit = scene.find_occlusion(tolight_ray, rtu.Interval(eps, shadow_max))
+
                     if not occlusion_hit:
-                        # accumulate all unoccluded light
                         Le_BRDF = hmat.BRDF(rGen_ray, tolight_ray, hinfo)
-                        # Le = Le + (Le_BRDF * light.material.emitting() * min(1.0, 1.0/max_distance))
-                        NdotLe = rtu.Vec3.dot_product(hinfo.getNormal(), tolight_dir)
-                        if NdotLe < 1e-06:
-                            NdotLe = 0.0
-                        direct_L_i = light.material.emitting()
+
+                        light_mat = light.material
+                        if hasattr(light_mat, 'direct_radiance'):
+                            direct_L_i = light_mat.direct_radiance(light.center, surface_point)
+                        else:
+                            direct_L_i = light_mat.emitting()
+
                         Le = Le + (Le_BRDF * direct_L_i * NdotLe)
 
             # return the color
