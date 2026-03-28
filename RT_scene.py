@@ -2,7 +2,7 @@ import RT_utility as rtu
 import numpy as np
 import RT_object as rto
 class Scene:
-    def __init__(self, cBgcolor=rtu.Color(0.01, 0.01, 0.01)) -> None:
+    def __init__(self, cBgcolor=rtu.Color(0.005, 0.005,0.005)) -> None:
         self.obj_list = []
         self.hit_list = None
         self.background_color = cBgcolor
@@ -62,15 +62,13 @@ class Scene:
             return hinfo is not None
  
         # Fallback linear
-        number_of_hit = 0
         for obj in self.obj_list:
             if hasattr(obj, 'bvh'):
                 hinfo = obj.bvh.intersect(vRay, interval)
             else:
                 hinfo = obj.intersect(vRay, interval)
+
             if hinfo is not None:
-                number_of_hit += 1
-            if number_of_hit > 1:
                 return True
         return False
  
@@ -88,7 +86,7 @@ class Scene:
     def get_sky_background_color(self, rGen_ray):
         unit_direction = rtu.Vec3.unit_vector(rGen_ray.getDirection())
         a = (unit_direction.y() + 1.0) * 0.5
-        return rtu.Color(1, 1, 1) * (1.0 - a) + rtu.Color(0.5, 0.7, 1.0) * a
+        return rtu.Color(1.0 , 0.94, 0.81) * (1.0 - a) + rtu.Color(1.0 , 0.84, 0.71) * a
  
     # ── Light discovery ───────────────────────────────────────────────────────
  

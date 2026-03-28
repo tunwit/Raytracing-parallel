@@ -4,6 +4,8 @@ import RT_object as rto
 import RT_utility as rtu
 import multiprocessing as mp
 import RT_material as rtm
+import RT_light as rtl
+
 import copy
 
 class MeshTranformer():
@@ -98,7 +100,7 @@ class MeshTranformer():
             color = material.diffuse[:3] if material.diffuse else (0, 0, 0)
             opacity = getattr(material, 'transparency', 1.5)
             if opacity < 0.99:
-                cp_mat = rtm.Dielectric(rtu.Color(color[0], color[1], color[2]),opacity)
+                cp_mat = rtm.Dielectric(rtu.Color(color[0], color[1], color[2]),1.5)
                 args_list.append((tri, center, scale, cp_mat, pos, half_height))
                 continue
             try:

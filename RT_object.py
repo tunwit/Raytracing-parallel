@@ -133,6 +133,28 @@ class Quad(Object):
 
         return True
 
+    def bounding_box(self):
+        p0 = self.Qpoint
+        p1 = self.Qpoint + self.Uvec
+        p2 = self.Qpoint + self.Vvec
+        p3 = self.Qpoint + self.Uvec + self.Vvec
+
+        epsilon = 1e-5
+
+        min_v = rtu.Vec3(
+            min(p0.x(), p1.x(), p2.x(), p3.x()) - epsilon,
+            min(p0.y(), p1.y(), p2.y(), p3.y()) - epsilon,
+            min(p0.z(), p1.z(), p2.z(), p3.z()) - epsilon
+        )
+
+        max_v = rtu.Vec3(
+            max(p0.x(), p1.x(), p2.x(), p3.x()) + epsilon,
+            max(p0.y(), p1.y(), p2.y(), p3.y()) + epsilon,
+            max(p0.z(), p1.z(), p2.z(), p3.z()) + epsilon
+        )
+
+        return rtb.AABB(min_v, max_v)
+
 
 class Triangle(Object):
     def __init__(self, v0, v1, v2, mMat=None) -> None:
@@ -141,8 +163,8 @@ class Triangle(Object):
         self.v1 = v1
         self.v2 = v2
         self.material = mMat
-        self.edge1 = self.v1 - self.v0
-        self.edge2 = self.v2 - self.v0
+        self.edge1 = self.v2 - self.v0
+        self.edge2 = self.v1 - self.v0
         self.uxv = rtu.Vec3.cross_product(self.edge1, self.edge2)
         self.normal = rtu.Vec3.unit_vector(self.uxv)
 

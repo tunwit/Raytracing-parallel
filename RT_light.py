@@ -28,16 +28,7 @@ class Diffuse_light(Light):
         return None
 
     def emitting(self):
-        return self.light_color
-
-    def direct_radiance(self, light_pos, surface_point):
-        to_point = surface_point - light_pos
-        dist = to_point.len()
-        if dist <= 1e-8:
-            return rtu.Color()
-
-        atten = 1.0 / (1.0 + self.linear * dist + self.quadratic * dist * dist)
-        return self.light_color * self.intensity * atten
+        return self.light_color * self.intensity
 
 
 class SpotLight(Diffuse_light):

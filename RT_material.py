@@ -38,6 +38,7 @@ class Material:
     def is_light(self):
         return False
 
+
 class Lambertian(Material):
     def __init__(self, cAlbedo) -> None:
         super().__init__()
@@ -126,6 +127,8 @@ class TextureColor(Material):
         attenuation_color = self.color_albedo.tex_value(hHinfo.u, hHinfo.v, hHinfo.point)
         return attenuation_color
 
+    def is_diffuse(self):
+        return True
 
 # A metal class with roughness parameter
 class Metal(Material):
